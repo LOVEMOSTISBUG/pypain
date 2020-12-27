@@ -1,5 +1,6 @@
 import urllib.request
 import urllib.parse
+import http.cookiejar
 import random
 import re
 import time
@@ -14,6 +15,7 @@ class SPIDER():
         self.k = k
         self.html = ''
         self.aim_list = []
+        self.deep_list = []
     def url_open(self,url):
         '''伪造报头和代理IP访问URL并返回值(默认二进制)'''
         ip_list = list(set(open('ip.txt','r').read().split('\n')))
@@ -24,7 +26,6 @@ class SPIDER():
         opener = urllib.request.build_opener(proxy_support)
         opener.addheaders = [('User-Agent',user_agent)]
         opener.addheaders = [('Accept','*/*')]
-        opener.addheaders = [('Accept-Language','en-US,en;q=0.8')]
         opener.addheaders = [('Referer',url)]
         urllib.request.install_opener(opener)
         print (my_ip+'\n'+user_agent)
@@ -80,13 +81,14 @@ class SPIDER():
     def get_aim_list(self):
         """访问本身地址并返回且保存目标URL列表"""
         try:
-            ls = re.findall(self.k,self.html)
-            ls=list(set(ls))
-            self.aim_list = ls
-            print('得到AIM_LIST')
-            return ls
+            self.aim_list = list(set(re.findall(self.k,self.html)))
+            if self.aim_list == []:
+                print('得到了空空如也的AIM_LIST')
+            else:
+                print('得到了想要的AIM_LIST')
+            return self.aim_list
         except Exception as e:
-            print('多半是HTML没爬到，检查一下？问题原因如下：',e)
+            print('查找目标出错：',e)
 
     def show_aim_list(self):
         """逐个输出目标的URL"""
@@ -125,32 +127,33 @@ class SPIDER():
         for n in range(1,page+1):
             self.aim_url = f_url + str(n) +b_url
             self.html = self.url_open(self.aim_url).decode('utf-8')
-            print('得到HTML')
+            print(f'得到第{n}页的HTML')
             self.get_aim_list()
             with open('data.txt','a+')as f:
                 for i in self.aim_list:
                     if type(i) == str:
                         f.write(i+'\n')
-                        print('写入页数：',n)
+                        print('写入数据：',i)
                     elif type(i) == tuple:
                         f.write(separator.join(list(i))+'\n')
-                        print('写入页数：',n)
+                        print('写入数据：'+separator.join(list(i)))
+    def deep_crawl(self,k_deep):
+        for url in self.aim_list:
+            deep_html = self.url_open(url).decode('utf-8')
+            ls =list(set(re.findall(k_deep,deep_html)))
+            print(ls)
+            self.deep_list.extend(ls)
+        print(self.deep_list)
         
 k_pic = re.compile(r'img src="((?:(?:.).*?)(?:(?:(?:jpg){1})|(?:(?:gif){1})))')
 k_ip = re.compile('(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])')
-k_aim = re.compile(r'''">
-              ((?:(?:.).*?))
-          </a>
-        </h3>
-        <div class="text">
-              (?:(?:.).*?)
-        </div>
-               
-        <div class="meta">
-                  ((?:(?:.).*?))
-                </div>''')
-
-b = SPIDER('https://www.bilibili.com',k_aim)
-b.get_html()
-b.show_html()
-
+k_aim = re.compile(r'''" title="(?:(?:(?:.).*?))">
+<a
+    href="((?:(?:.).*?))"
+    ''')
+k_aim_deep= r'''<title>((?:(?:.).*?))</title>'''
+b = SPIDER('',k_aim)
+b.crawl()
+b.show_aim_list()
+b.deep_crawl(k_aim_deep)
+#b.keep_data_by_pages(20,f_url='')
