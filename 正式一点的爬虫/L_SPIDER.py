@@ -16,25 +16,28 @@ class SPIDER():
         self.aim_list = []
     def url_open(self,url):
         '''伪造报头和代理IP访问URL并返回值(默认二进制)'''
-        try: 
-            ip_list = list(set(open('ip.txt','r').read().split('\n')))
-            my_ip = random.choice(ip_list)
-            user_agents = list(set(open('user_agent.txt','r').read().split('\n')))
-            user_agent = random.choice(user_agents)
-            proxy_support = urllib.request.ProxyHandler({'http':my_ip})
-            opener = urllib.request.build_opener(proxy_support)
-            opener.addheaders = [('User-Agent',user_agent)]
-            opener.addheaders = [('Accept','*/*')]
-            opener.addheaders = [('Accept-Language','en-US,en;q=0.8')]
-            opener.addheaders = [('Referer',url)]
-            urllib.request.install_opener(opener)
-            print (my_ip+'\n'+user_agent)
+        ip_list = list(set(open('ip.txt','r').read().split('\n')))
+        my_ip = random.choice(ip_list)
+        user_agents = list(set(open('user_agent.txt','r').read().split('\n')))
+        user_agent = random.choice(user_agents)
+        proxy_support = urllib.request.ProxyHandler({'http':my_ip})
+        opener = urllib.request.build_opener(proxy_support)
+        opener.addheaders = [('User-Agent',user_agent)]
+        opener.addheaders = [('Accept','*/*')]
+        opener.addheaders = [('Accept-Language','en-US,en;q=0.8')]
+        opener.addheaders = [('Referer',url)]
+        urllib.request.install_opener(opener)
+        print (my_ip+'\n'+user_agent)
+        try:
             req = urllib.request.Request(url)
             response = urllib.request.urlopen(req)
             result = response.read()
             return result
-        except Exception as e:
-            print('试图访问失败。失败原因：',e+'\n')
+        except urllib.error.HTTPError as e:
+            if str(e.code)[0]=='4':
+                print(e,'\n你被ban了,老弟。')
+            if str(e.code)[0]=='5':
+                print(e,'\n服务器炸了！哇靠！')
             return ''
         
     def get_html_gzip(self):
@@ -48,17 +51,22 @@ class SPIDER():
             print('用gzip解压得到HTML')
             return self.html
         except Exception as e:
-            print('获取HTML失败了。gzip压缩也失败了。原因如下：',e)
+            print('gzip解压缩获取HTML也失败了。原因如下：',e)
                 
     def get_html(self):
         """访问本身地址并返回且保存URL"""
         if self.html=='':
             try:
-                self.html = self.url_open(self.aim_url).decode('utf-8')
-                print('得到HTML')
+                result = self.url_open(self.aim_url)
+                if result != '':
+                    self.html = result.decode('utf-8')
+                    print('得到HTML')
+                if result == '':
+                    print('啥都没摸到。。')
+                    self.html = ''
                 return self.html
             except Exception as e:
-                print('获取HTML失败了。失败原因如下：',e,'祈祷是gzip压缩吧')
+                print('获取HTML失败了。失败原因如下：',str(e))
                 return self.get_html_gzip()
                 
         else:
@@ -142,11 +150,7 @@ k_aim = re.compile(r'''">
                   ((?:(?:.).*?))
                 </div>''')
 
-news = SPIDER('',k_aim)
-news.keep_data_by_pages()
-
-
-
-
-
+b = SPIDER('https://www.bilibili.com',k_aim)
+b.get_html()
+b.show_html()
 
