@@ -1,0 +1,152 @@
+import urllib.request
+import urllib.parse
+import random
+import re
+import time
+import os
+import gzip
+from io import StringIO
+
+class SPIDER():
+    def __init__(self,aim_url,k):
+        """初始化"""
+        self.aim_url = aim_url
+        self.k = k
+        self.html = ''
+        self.aim_list = []
+    def url_open(self,url):
+        '''伪造报头和代理IP访问URL并返回值(默认二进制)'''
+        try: 
+            ip_list = list(set(open('ip.txt','r').read().split('\n')))
+            my_ip = random.choice(ip_list)
+            user_agents = list(set(open('user_agent.txt','r').read().split('\n')))
+            user_agent = random.choice(user_agents)
+            proxy_support = urllib.request.ProxyHandler({'http':my_ip})
+            opener = urllib.request.build_opener(proxy_support)
+            opener.addheaders = [('User-Agent',user_agent)]
+            opener.addheaders = [('Accept','*/*')]
+            opener.addheaders = [('Accept-Language','en-US,en;q=0.8')]
+            opener.addheaders = [('Referer',url)]
+            urllib.request.install_opener(opener)
+            print (my_ip+'\n'+user_agent)
+            req = urllib.request.Request(url)
+            response = urllib.request.urlopen(req)
+            result = response.read()
+            return result
+        except Exception as e:
+            print('试图访问失败。失败原因：',e+'\n')
+            return ''
+        
+    def get_html_gzip(self):
+        """访问本身地址并用gzip解压后返回且保存URL"""
+        try:
+            result = self.url_open(self.aim_url)
+            buf = StringIO(result)
+            f = gzip.GzipFile(fileobj=buf)
+            html =  f.read()
+            self.html = html
+            print('用gzip解压得到HTML')
+            return self.html
+        except Exception as e:
+            print('获取HTML失败了。gzip压缩也失败了。原因如下：',e)
+                
+    def get_html(self):
+        """访问本身地址并返回且保存URL"""
+        if self.html=='':
+            try:
+                self.html = self.url_open(self.aim_url).decode('utf-8')
+                print('得到HTML')
+                return self.html
+            except Exception as e:
+                print('获取HTML失败了。失败原因如下：',e,'祈祷是gzip压缩吧')
+                return self.get_html_gzip()
+                
+        else:
+            return self.html
+    def show_html(self):
+        """输出本身地址HTML"""
+        if self.html!='':
+            print(self.html)
+        else:
+            print('请先运行get_html函数。')
+    def get_aim_list(self):
+        """访问本身地址并返回且保存目标URL列表"""
+        try:
+            ls = re.findall(self.k,self.html)
+            ls=list(set(ls))
+            self.aim_list = ls
+            print('得到AIM_LIST')
+            return ls
+        except Exception as e:
+            print('多半是HTML没爬到，检查一下？问题原因如下：',e)
+
+    def show_aim_list(self):
+        """逐个输出目标的URL"""
+        if type(self.aim_list) == list:
+            for url in self.aim_list:
+                try:
+                    print(url)
+                except UnicodeEncodeError:
+                    print('MD又是编码错误')
+        else :
+            print('居然不是列表？')
+    def crawl(self):
+        '''初始化基本的HTML和目标URL列表'''
+        self.html = self.get_html()
+        self.aim_list = self.get_aim_list()
+        
+    def download_aim_list(self,aim_dir=''):
+        """按查找到的aim_list逐个下载"""
+        total_len = len(self.aim_list)
+        for i in range(1,total_len+1):
+            url = self.aim_url + self.aim_list.pop()
+            print('目前下载文件URL：'+url)
+            try:
+                file_name = url.split('/')[-1]
+                print('保存文件名为'+file_name)
+                response = self.url_open(url)
+                with open (aim_dir +'/'+ file_name,'wb') as file:
+                    file.write(response)
+                print(f'已完成{i/total_len:.2%}')
+            except Exception as e:
+                self.aim_list.append(url)
+                print('下载出现问题。问题原因如下：',e)
+    
+    def keep_data_by_pages(self,page=1,f_url='',b_url='',separator=','):
+        '''分页爬取并保存数据'''
+        for n in range(1,page+1):
+            self.aim_url = f_url + str(n) +b_url
+            self.html = self.url_open(self.aim_url).decode('utf-8')
+            print('得到HTML')
+            self.get_aim_list()
+            with open('data.txt','a+')as f:
+                for i in self.aim_list:
+                    if type(i) == str:
+                        f.write(i+'\n')
+                        print('写入页数：',n)
+                    elif type(i) == tuple:
+                        f.write(separator.join(list(i))+'\n')
+                        print('写入页数：',n)
+        
+k_pic = re.compile(r'img src="((?:(?:.).*?)(?:(?:(?:jpg){1})|(?:(?:gif){1})))')
+k_ip = re.compile('(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])\.(\d|[1-9]\d|1\d{2}|2[0-5][0-5])')
+k_aim = re.compile(r'''">
+              ((?:(?:.).*?))
+          </a>
+        </h3>
+        <div class="text">
+              (?:(?:.).*?)
+        </div>
+               
+        <div class="meta">
+                  ((?:(?:.).*?))
+                </div>''')
+
+news = SPIDER('',k_aim)
+news.keep_data_by_pages()
+
+
+
+
+
+
